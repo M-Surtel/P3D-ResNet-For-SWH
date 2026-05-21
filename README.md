@@ -5,28 +5,28 @@ This repo provides accompanying code for a paper titled "Incorporating Physical 
 - [How to Use This Repository](#how-to-use-this-repository)
 - [Documentation](#documentation)
     - [Dataset Creation](#dataset-creation)
-        - [ERA5DataAcquisition.py](#ERA5DataAcquisition)
-        - [createERA5Dataset.py](#createERA5Dataset)
-        - [calculate_feature_means.py](#calculate-feature-means)
-        - [save_sea_mask.py](#save-sea-mask)
-        - [append_var_to_npy_dataset.py](#append-var-to-npy-dataset)
-        - [crop_npy_spatial.py](#crop-npy-spatial)
-        - [crop_to_divisible.py](#crop-to-divisible)
-        - [decrease_resolution.py](#decrease-resolution)
+        - [ERA5DataAcquisition.py](#era5dataacquisitionpy)
+        - [createERA5Dataset.py](#createera5datasetpy)
+        - [calculate_feature_means.py](#calculatefeaturemeanspy)
+        - [save_sea_mask.py](#saveseamaskpy)
+        - [append_var_to_npy_dataset.py](#appendvartonpydatasetpy)
+        - [crop_npy_spatial.py](#cropnpyspatialpy)
+        - [crop_to_divisible.py](#croptodivisiblepy)
+        - [decrease_resolution.py](#decreaseresolutionpy)
     - [Model Classes](#model-classes)
-        - [P3D_ResNet_blocks](#P3D-ResNet-blocks)
-            - [pytorch_blocks.py](#pytorch-blocks)
-        - [abstract_model.py](#abstract-model)
-        - [custom_loss.py](#custom-loss)
-        - [P3D_ResNet.py](#P3D-ResNet)
-        - [persistence_model.py](#persistence-model)
-        - [shapley_P3D_ResNet.py](#shapley-P3D-ResNet)
-        - [U_ResNet.py](#U-ResNet)
-        - [unet.py](#unet)
+        - [P3D_ResNet_blocks](#P3DResNetblocks)
+            - [pytorch_blocks.py](#pytorchblockspy)
+        - [abstract_model.py](#abstractmodelpy)
+        - [custom_loss.py](#customlosspy)
+        - [P3D_ResNet.py](#P3DResNetpy)
+        - [persistence_model.py](#persistencemodelpy)
+        - [shapley_P3D_ResNet.py](#shapleyP3DResNetpy)
+        - [U_ResNet.py](#UResNetpy)
+        - [unet.py](#unetpy)
     - [Shapley Values](#shapley-values)
-        - [captum_shapley_sampling.py](#captum-shapley-sampling)
+        - [captum_shapley_sampling.py](#captumshapleysamplingpy)
     - [Testing](#testing)
-        - [total_error_statistics.py](#total-error-statistics)
+        - [total_error_statistics.py](#totalerrorstatisticspy)
         - [error_vs_feature.py](#error-vs-feature)
         - [error_vs_swh.py](#error-vs-swh)
         - [seasonal_error.py](#seasonal-error)
@@ -37,7 +37,11 @@ This repo provides accompanying code for a paper titled "Incorporating Physical 
 <!-- tocstop -->
 
 ## How To Use This Repository
-This repository exists so that the results of "Incorporating Physical Considerations into Deep Learning for Predicting the Significant Wave Height of Ocean Waves" can be replicated. The [Documentation](#documentation) section explains the purpose of each script, while the [Model Configurations](#model-configurations) section notes the exact configurations of the P3D-ResNet used in the paper.
+This repository exists so that the results of 
+"Incorporating Physical Considerations into Deep Learning for Predicting the Significant Wave Height of Ocean Waves" can be replicated. 
+The [Documentation](#documentation) section explains the purpose of each script, 
+while the [Model Configurations](#model-configurations) section notes the exact configurations of the P3D-ResNet used in the paper.
+If you are unfamiliar with using command-line arguments, the [Model Configurations](#model-configurations) section provides numerous examples.
 
 ## Documentation
 This section briefly explains the use of each script. For more specific help about the command-line arguments, you can run
@@ -52,6 +56,100 @@ All Python files have --help commands to explain their arguments, and they help 
 
 ### Dataset Creation
 #### ERA5DataAcquisition.py
+Script to download the ERA5 .grib files. 
+For more information on this visit: https://cds.climate.copernicus.eu/how-to-api. 
+The values are hard-coded (i.e. no command-line args). 
+Each year is split up into 3 files because CDS imposes limits on file sizes that can be queried.
+This script skips files that have already been downloaded.
 
+#### createERA5Dataset.py
+This script takes .grib --input-files, and creates .npy files out of the selected --features.
+The training and testing scripts only take .npy files as they are easier to work with.
+The min-max normalisation values are also in this file under `feature_to_max_min`.
+Directional encoding is set using --directional_encoding.
+Also generates a .csv max-min normalisation file.
+
+#### calculate_feature_means.py
+Uses --data-files to calculate feature means and appends them to --input-normalisation-file.
+Feature means are used for Shapley analysis.
+If you do not do Shapley analysis, you will likely not need this.
+
+#### save_sea_mask.py
+Uses --dataset-file and --input-normalisation-file to ascertain where the sea is and where the land is.
+Any grid cell that has at least one non-zero value for significant wave height is deemed to be sea.
+The remaining values are considered land.
+Some scripts require a sea-mask to be able to tell land from sea.
+
+#### append_var_to_npy_dataset.py
+Convenience script that appends features from .grib files to existing .npy datasets.
+This script is handy for when you want to test new variables that were not in your original dataset.
+It takes the .grib --input-files and desired --features, and appends them to an existing .npy dataset --output-file.
+
+#### crop_npy_spatial.py
+This script allows the user to crop a dataset to receive a spatial subset.
+
+#### crop_to_divisible.py
+This script was written to make the output area neatly divisible for the UNet.
+If you do not use the UNet code, you will likely not need it.
+
+#### decrease_resolution.py
+Script that allows the given .npy dataset --input-files to be reduced in resolution.
+The paper in question uses this to half the spatial dimensions for computational speed.
+The --help option explains the syntax required for the slicing.
+
+
+### Model Classes
+#### P3D_ResNet_blocks
+##### pytorch_blocks.py
+This contains the code that is used by P3D-ResNet scripts in the parent folder to construct P3D-ResNets.
+
+#### abstract_model.py
+An abstract parent class for all models.
+This ensures that all model classes have, at least, all the basic sets of building blocks, 
+allowing them to be used in place of one another in the training and testing scripts.
+If you want to write a new model within this repo, it would inherit from the `ParentModel`.
+
+#### custom_loss.py
+This script is used to create a hybrid loss.
+The hybrid is a weighted combination of Mean Squared Error and Mean Absolute Percentage Error.
+The results using this hybrid loss did not make it in the paper.
+
+#### P3D_ResNet.py
+This combines the P3D-blocks ([pytorch_blocks.py](#pytorchblockspy)) into a single model. 
+It is used by the training and testing scripts.
+
+#### persistence_model.py
+The persistence model offers a baseline to compare any model performance against. 
+The persistence model simply predicts that the significant wave height will not change.
+
+##### shapley_P3D_ResNet.py
+This script takes the P3D-ResNet, but modifies the `forward()` function to accommodate missing features,
+as it is required for Shapley analysis.
+
+##### U_ResNet.py
+An alternative architecture that we briefly experimented with.
+It has the varying resolutions of a UNet, and the modular blocks of a ResNet.
+This architecture has been used before in the ML literature.
+
+#### unet.py
+We considered the UNet as an alternative strategy when it became apparent the P3D-ResNet would require 
+increased spatial kernel size in the convolutional layers.
+In our experience, for the SWH problem, this architecture is cheaper, but performs worse.
+
+
+### Shapley Values
+#### captum_shapley_sampling.py
+This script uses [Captum](https://captum.ai/) to calculate Shapley values.
+It includes many options and ranges from off-manifold magnitude-based Shapley values to on-manifold accuracy-based Shapley values.
+Asymmetric Shapley Values are also an option, allowing the weighing of time steps via --time-step-asv or doing regular ASVs via
+--ancestor-features and --descendant-features. A lot of the arguments are optional.
+
+### Testing
+#### total_error_statistics.py
+This is the most general testing script.
+It takes a model checkpoint --checkpoint and testing dataset --data as input,
+and uses that to calculate MAE, MAPE, MSE, RMSE, and generate a histogram of errors and a spatial heatmap of MAE.
+If your test dataset is large, it is recommended to lower --histogram-fraction from 1.0 to something like 0.1 or 0.05.
+This prevents the creation of exceedingly large histograms.
 
 ## Model Configurations
