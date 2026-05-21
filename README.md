@@ -200,7 +200,7 @@ Datasets created by [createERA5Dataset.py](#createera5datasetpy) conform to this
 Baseline model:
 ```bash
 $ export name='training/japan-years-30-features-8-lead-time-12-kernel-size-3-no-reduction-4'
-$ python -m python_scripts.training.train \
+$ python -m training.train \
     -m P3D-ResNet \
     -a lead_time=12 lr=0.001 optimiser=Adam lookback=11 num_blocks=3 norm_type='group_norm' \
        num_groups=4 dropout_rate=0 weight_decay=0.001 kernel_size=3 spatial_reduction=8 \
@@ -220,7 +220,7 @@ $ python -m python_scripts.training.train \
 Final model:
 ```bash
 $ export name='training/japan-years-30-features-8-lead-time-12-no-dir-vars-width-8'
-$ python -m python_scripts.training.train \
+$ python -m training.train \
     -m P3D-ResNet \
     -a lead_time=12 lr=0.001 optimiser=Adam lookback=11 num_blocks=3 norm_type='group_norm' \
        num_groups=4 dropout_rate=0 weight_decay=0.001 kernel_size=9 spatial_reduction=8 \
