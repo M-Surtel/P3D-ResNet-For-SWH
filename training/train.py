@@ -431,8 +431,6 @@ model_map: Dict[str, type[ParentModel]] = {
     "U-Net": UNet,
     "P3D-ResNet": P3DResNet,
     "U-ResNet": UResNet,
-    "FreMixer": FreMixer,
-    "FracMixer": FracMixer,
 }
 if __name__ == '__main__':
     main()
