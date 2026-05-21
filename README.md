@@ -27,12 +27,11 @@ This repo provides accompanying code for a paper titled "Incorporating Physical 
         - [captum_shapley_sampling.py](#captumshapleysamplingpy)
     - [Testing](#testing)
         - [total_error_statistics.py](#totalerrorstatisticspy)
-        - [error_vs_feature.py](#error-vs-feature)
-        - [error_vs_swh.py](#error-vs-swh)
-        - [seasonal_error.py](#seasonal-error)
-        - [test_pixel_change.py](#test-pixel-change)
+        - [error_vs_feature.py](#errorvsfeaturepy)
+        - [seasonal_error.py](#seasonalerrorpy)
+        - [test_pixel_change.py](#testpixelchangepy)
     - [Training](#training)
-        - [train.py](#train.py)
+        - [train.py](#trainpy)
 - [Model Configurations](#model-configurations)
 <!-- tocstop -->
 
@@ -40,8 +39,7 @@ This repo provides accompanying code for a paper titled "Incorporating Physical 
 This repository exists so that the results of 
 "Incorporating Physical Considerations into Deep Learning for Predicting the Significant Wave Height of Ocean Waves" can be replicated. 
 The [Documentation](#documentation) section explains the purpose of each script, 
-while the [Model Configurations](#model-configurations) section notes the exact configurations of the P3D-ResNet used in the paper.
-If you are unfamiliar with using command-line arguments, the [Model Configurations](#model-configurations) section provides numerous examples.
+while the [Model Configurations](#model-configurations) section notes the exact configurations of the baseline and final P3D-ResNet used in the paper.
 
 ## Documentation
 This section briefly explains the use of each script. For more specific help about the command-line arguments, you can run
@@ -152,4 +150,89 @@ and uses that to calculate MAE, MAPE, MSE, RMSE, and generate a histogram of err
 If your test dataset is large, it is recommended to lower --histogram-fraction from 1.0 to something like 0.1 or 0.05.
 This prevents the creation of exceedingly large histograms.
 
+#### error_vs_feature.py
+This script is useful for evaluating how the model's error changes with differing values of a specific feature.
+In the paper we use it to calculate the error versus the significant wave height.
+The output is a .pt file that contains a dictionary.
+The `error` key in the dictionary contains the tensor of errors, while the `[feature_name]` key contains the tensor of feature values.
+This can be used to created plots and derive statistics.
+
+#### seasonal_error.py
+A script that categorises error by season, for seasonal analysis.
+It outputs a polars .parquet file that contains a dataframe with MAE values and seasons.
+
+#### test_pixel_change.py
+Given specific point indices --pixels, the script calculates the predicted difference (`predicted_swh - input_swh`) 
+and actual difference (`target_swh - input_swh`). 
+The most recent significant wave height is taken as the `input_swh`.
+In the paper, this script is used to evaluate how well the model captures the dynamics of a high-error, a medium-error, and a low-error point.
+
+### Training
+#### train.py
+This script handles the training for all models.
+The --model-args are fed straight to the chosen --model.
+To know what the possible --model-args are, you should check the script for the model you are using.
+It is important to note down what your --model-args are, as they must be supplied whenever you want to recreate the model
+(e.g. during further training or testing).
+After each epoch, the model saves a checkpoint, so progress is not lost when the script is interrupted.
+The checkpoint consists of a dictionary that contains
+```python
+checkpoint = {
+    'epoch': epoch + 1,
+    'model': model.state_dict(),
+    'optimiser': model.optimiser.state_dict(),
+    'lr_scheduler': scheduler_state_dict,
+    'training_losses': train_losses,
+    'training_swh_losses': train_swh_losses,
+    'validation_losses': validation_losses,
+    'validation_swh_losses': validation_swh_losses,
+}
+```
+Sensible file-naming policies are recommended when training multiple models.
+If the filename conforms to the regular expression `*(0).npy`,
+this script will automatically try to find files of `[Name](N).npy`
+until it reaches an N for which there is no file.
+Datasets created by [createERA5Dataset.py](#createera5datasetpy) conform to this regular expression.
+
+
 ## Model Configurations
+
+Baseline model:
+```bash
+$ export name='training/japan-years-30-features-8-lead-time-12-kernel-size-3-no-reduction-4'
+$ python -m python_scripts.training.train \
+    -m P3D-ResNet \
+    -a lead_time=12 lr=0.001 optimiser=Adam lookback=11 num_blocks=3 norm_type='group_norm' \
+       num_groups=4 dropout_rate=0 weight_decay=0.001 kernel_size=3 spatial_reduction=8 \
+       padding_mode=zeros \
+    -t "./data/datasets/ERA5/japan-32-features-training-half-res/1987To2016-japan-32-features-training(0).npy" \
+    -v "./data/datasets/ERA5/japan-32-features-validation-half-res/2017To2019-japan-32-features-validation(0).npy" \
+    -e 100 \
+    -b 128 \
+    -d './results/'$name \
+    -o './model_parameters/'$name \
+    -n "./data/datasets/ERA5/japan-32-features-training-half-res/1987To2016-japan-32-features-training-feature-max-min.csv" \
+    -p float32 \
+    -i mwp wind wmb dwi_sin dwi_cos mwd_sin mwd_cos swh \
+    -u swh
+```
+
+Final model:
+```bash
+$ export name='training/japan-years-30-features-8-lead-time-12-no-dir-vars-width-8'
+$ python -m python_scripts.training.train \
+    -m P3D-ResNet \
+    -a lead_time=12 lr=0.001 optimiser=Adam lookback=11 num_blocks=3 norm_type='group_norm' \
+       num_groups=4 dropout_rate=0 weight_decay=0.001 kernel_size=9 spatial_reduction=8 \
+       spatial_reduction_strategy='gradual' padding_mode=zeros hidden_size=8 \
+    -t "./data/datasets/ERA5/japan-32-features-training-half-res/1987To2016-japan-32-features-training(0).npy" \
+    -v "./data/datasets/ERA5/japan-32-features-validation-half-res/2017To2019-japan-32-features-validation(0).npy" \
+    -e 100 \
+    -b 128 \
+    -d './results/'$name \
+    -o './model_parameters/'$name \
+    -n "./data/datasets/ERA5/japan-32-features-training-half-res/1987To2016-japan-32-features-training-feature-max-min.csv" \
+    -p float32 \
+    -i mwp wind wmb swh \
+    -u swh
+```
